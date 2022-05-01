@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Discord.Interactions;
 using VkNet.AudioBypassService.Extensions;
 using YoutubeExplode;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration.Json;
 
 public class Program
 {
@@ -13,13 +15,19 @@ public class Program
 
     private DiscordSocketClient _client;
     private InteractionService _commands;
-    private Events _events = new();
+    private IConfiguration _config;
+    private Events _events;
     private ulong _guildId; 
 
     public async Task MainAsync()
     {
-        _guildId = ulong.Parse(Environment.GetEnvironmentVariable("GuildId"));
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile(path: "appsettings.json");
+        _config = builder.Build();
+        _guildId = ulong.Parse(_config["GuildId"]);
         var services = BuildServiceProvider();
+        _events = new(services.GetRequiredService<Storage>());
         try
         {
             var client = services.GetRequiredService<DiscordSocketClient>();
@@ -30,8 +38,9 @@ public class Program
             _client.Log += _events.Log;
             _commands.Log += _events.Log;
             _client.Ready += ReadyAsync;
+            _client.MessageReceived += _events.CatchMessage;
 
-            var token = Environment.GetEnvironmentVariable("token");
+            var token = _config["token"];
 
             await _client.LoginAsync(TokenType.Bot, token);
             await _client.StartAsync();
@@ -61,5 +70,6 @@ public class Program
             .AddSingleton<CommandHandler>()
             .AddAudioBypass()
             .AddSingleton<YoutubeClient>()
+            .AddSingleton<Storage>()
             .BuildServiceProvider();
 }
