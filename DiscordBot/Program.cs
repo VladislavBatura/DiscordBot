@@ -7,6 +7,9 @@ using VkNet.AudioBypassService.Extensions;
 using YoutubeExplode;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Configuration.Json;
+using Google.Apis.YouTube;
+using Google.Apis.YouTube.v3;
+using Google.Apis.Services;
 
 public class Program
 {
@@ -17,7 +20,7 @@ public class Program
     private InteractionService _commands;
     private IConfiguration _config;
     private Events _events;
-    private ulong _guildId; 
+    private ulong _guildId;
 
     public async Task MainAsync()
     {
@@ -28,6 +31,7 @@ public class Program
         _guildId = ulong.Parse(_config["GuildId"]);
         var services = BuildServiceProvider();
         _events = new(services.GetRequiredService<Storage>());
+
         try
         {
             var client = services.GetRequiredService<DiscordSocketClient>();
@@ -64,12 +68,19 @@ public class Program
         await _commands.RegisterCommandsToGuildAsync(_guildId);
     }
 
-    private IServiceProvider BuildServiceProvider() => new ServiceCollection()
+    private IServiceProvider BuildServiceProvider()
+    {
+        return new ServiceCollection()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>()))
             .AddSingleton<CommandHandler>()
             .AddAudioBypass()
             .AddSingleton<YoutubeClient>()
             .AddSingleton<Storage>()
+            .AddSingleton(x => new Youtube(_config))
+            .AddSingleton(x =>
+                new MusicService(x.GetRequiredService<Storage>(),
+                                 x.GetRequiredService<YoutubeClient>()))
             .BuildServiceProvider();
+    }
 }

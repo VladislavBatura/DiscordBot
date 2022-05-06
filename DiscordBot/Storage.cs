@@ -14,6 +14,8 @@ namespace DiscordBot
             = new();
         private readonly ConcurrentDictionary<ulong, IAudioClient> _channels = new();
         public string url = "";
+        public Stream inputStream { get; set; }
+        public Stream outputStream { get; set; }
 
         public void AddData(ulong id, IEnumerable<string> searchResults)
         {
@@ -47,7 +49,7 @@ namespace DiscordBot
         public string GetData(ulong id, int position)
         {
             _ = _youtubeStorage.TryGetValue(id, out var result);
-            return result.ElementAtOrDefault(position) ?? string.Empty;
+            return result.ElementAtOrDefault(position - 1) ?? string.Empty;
         }
 
         public IAudioClient GetChannel(ulong id)

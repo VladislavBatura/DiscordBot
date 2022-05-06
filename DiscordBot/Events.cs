@@ -30,10 +30,11 @@ namespace DiscordBot
                     if (!int.TryParse(msg.Content.Trim(), out var number))
                     {
                         _ = msg.Channel.SendMessageAsync("Choose from given numbers, durbelik");
+                        return Task.CompletedTask;
                     }
                     var video = _storage.GetData(msg.Author.Id, number);
-                    _storage.RemoveData(msg.Author.Id);
                     _storage.url = video;
+                    _storage.RemoveData(msg.Author.Id);
                 }
             }
             return Task.CompletedTask;
