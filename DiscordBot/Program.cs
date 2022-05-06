@@ -6,15 +6,13 @@ using Discord.Interactions;
 using VkNet.AudioBypassService.Extensions;
 using YoutubeExplode;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Configuration.Json;
-using Google.Apis.YouTube;
-using Google.Apis.YouTube.v3;
-using Google.Apis.Services;
 
 public class Program
 {
-    public static void Main(string[] args) =>
+    public static void Main()
+    {
         new Program().MainAsync().GetAwaiter().GetResult();
+    }
 
     private DiscordSocketClient _client;
     private InteractionService _commands;

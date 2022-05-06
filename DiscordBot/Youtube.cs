@@ -32,7 +32,7 @@ namespace DiscordBot
 
             var src = _youtube.Search.List("snippet");
             src.Q = query;
-            src.MaxResults = maxResults;
+            src.MaxResults = maxResults + 50;
 
             var response = await src.ExecuteAsync();
 

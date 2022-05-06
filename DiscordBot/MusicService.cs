@@ -57,7 +57,7 @@ namespace DiscordBot
             }
 
             _ = await Cli.Wrap("ffmpeg")
-                .WithArguments(" -hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1")
+                .WithArguments("-hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1")
                 .WithStandardInputPipe(PipeSource.FromStream(_storage.inputStream))
                 .WithStandardOutputPipe(PipeTarget.ToStream(_storage.outputStream))
                 .ExecuteAsync();

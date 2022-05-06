@@ -5,6 +5,7 @@ using Discord.Audio;
 using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
 using CliWrap;
+using YoutubeExplode.Search;
 
 namespace DiscordBot
 {
@@ -84,21 +85,28 @@ namespace DiscordBot
 
         private async Task<EmbedBuilder?> SearchVideoAsync(string searchQuery, int count)
         {
-            var searchResults = await _youtube.SearchVideo(searchQuery, count);
-            if (!searchResults.Any())
+            var videos = new List<VideoSearchResult>();
+            await foreach (var batch in _client.Search.GetResultBatchesAsync(searchQuery, SearchFilter.Video))
             {
-                return null;
+                foreach (var video in batch.Items)
+                {
+                    if (!(video as VideoSearchResult).Duration.HasValue ||
+                        (video as VideoSearchResult).Duration.Value.TotalMinutes
+                        is > 125d or < 0.5d)
+                    {
+                        continue;
+                    }
+                    videos.Add((VideoSearchResult)video);
+                }
             }
 
-            var videos = new List<YoutubeExplode.Videos.Video>();
-            foreach (var item in searchResults)
-            {
-                videos.Add(await _client.Videos.GetAsync(item.Url));
-            }
+            var filteredVideos = videos
+                .Take(count)
+                .ToList();
 
             var videosUrl = new List<string>();
 
-            foreach (var video in videos)
+            foreach (var video in filteredVideos)
             {
                 videosUrl.Add(video.Url);
             }
@@ -106,12 +114,14 @@ namespace DiscordBot
             var embed = new EmbedBuilder
             {
                 Title = $"Search by {searchQuery}",
-                Description = $"Total in {videos.Count}"
+                Description = $"Total in {filteredVideos.Count}"
             };
             var stringa = new StringBuilder();
-            for (var i = 0; i < videos.Count; i++)
+            var i = 1;
+            foreach (var video in filteredVideos)
             {
-                stringa = stringa.AppendLine($"{i + 1} - {videos[i].Title} - ({videos[i].Duration})");
+                stringa = stringa.AppendLine($"{i} - {video.Title} - ({video.Duration})");
+                i++;
             }
 
             embed = embed.AddField("Results", stringa)
