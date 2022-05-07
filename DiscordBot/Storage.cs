@@ -13,9 +13,10 @@ namespace DiscordBot
         private readonly ConcurrentDictionary<ulong, IEnumerable<string>> _youtubeStorage
             = new();
         private readonly ConcurrentDictionary<ulong, IAudioClient> _channels = new();
-        public string url = "";
-        public Stream inputStream { get; set; }
-        public Stream outputStream { get; set; }
+        public string Url { get; set; } = "";
+        public ulong MessageId { get; set; }
+        public Stream InputStream { get; set; }
+        public Stream OutputStream { get; set; }
 
         public void AddData(ulong id, IEnumerable<string> searchResults)
         {

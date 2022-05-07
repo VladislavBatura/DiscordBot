@@ -11,9 +11,12 @@ namespace DiscordBot
     internal class Events
     {
         private readonly Storage _storage;
-        public Events(Storage storage)
+        private readonly MusicService _musicService;
+
+        public Events(Storage storage, MusicService musicService)
         {
             _storage = storage;
+            _musicService = musicService;
         }
         public Task Log(LogMessage arg)
         {
@@ -33,10 +36,19 @@ namespace DiscordBot
                         return Task.CompletedTask;
                     }
                     var video = _storage.GetData(msg.Author.Id, number);
-                    _storage.url = video;
+                    _storage.Url = video;
                     _storage.RemoveData(msg.Author.Id);
                 }
             }
+            return Task.CompletedTask;
+        }
+
+        public async Task<Task> CatchSelectOption(SocketMessageComponent msg)
+        {
+            var text = string.Join(", ", msg.Data.Values);
+            await msg.RespondAsync($"You have selected {text}");
+            await msg.Channel.DeleteMessageAsync(_storage.MessageId);
+            _storage.Url = text;
             return Task.CompletedTask;
         }
     }

@@ -28,7 +28,8 @@ public class Program
         _config = builder.Build();
         _guildId = ulong.Parse(_config["GuildId"]);
         var services = BuildServiceProvider();
-        _events = new(services.GetRequiredService<Storage>());
+        _events = new(services.GetRequiredService<Storage>(),
+            services.GetRequiredService<MusicService>());
 
         try
         {
@@ -41,6 +42,7 @@ public class Program
             _commands.Log += _events.Log;
             _client.Ready += ReadyAsync;
             _client.MessageReceived += _events.CatchMessage;
+            _client.SelectMenuExecuted += _events.CatchSelectOption;
 
             var token = _config["token"];
 

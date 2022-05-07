@@ -41,8 +41,25 @@ namespace DiscordBot
         public async Task SearchAudioAsync(string name, int count = 10, IVoiceChannel? channel = null)
         {
             await DeferAsync();
-            var embedBuilder = await SearchVideoAsync(name, count);
-            if (embedBuilder is null)
+            //var embedBuilder = await SearchVideoAsync(name, count);
+            //if (embedBuilder is null)
+            //{
+            //    _ = await ModifyOriginalResponseAsync((ms) =>
+            //      {
+            //          ms.Content = "Failed to search";
+            //      });
+            //    return;
+            //}
+
+            //var embed = embedBuilder.Build();
+            //var msg = await ModifyOriginalResponseAsync((ms) =>
+            //{
+            //    ms.Embed = embed;
+            //});
+
+            var components = await SearchVideoOptionAsync(name, count);
+
+            if (components is null)
             {
                 _ = await ModifyOriginalResponseAsync((ms) =>
                   {
@@ -51,11 +68,15 @@ namespace DiscordBot
                 return;
             }
 
-            var embed = embedBuilder.Build();
+            var embed = components.embedBuilder.Build();
+            var selectOption = components.componentBuilder.Build();
             var msg = await ModifyOriginalResponseAsync((ms) =>
             {
                 ms.Embed = embed;
             });
+
+            var m = await ReplyAsync("Select track", components: selectOption);
+            _storage.MessageId = m.Id;
 
             channel ??= (Context.User as IGuildUser)?.VoiceChannel;
             if (channel == null)
@@ -66,7 +87,9 @@ namespace DiscordBot
                 return;
             }
 
-            while (string.IsNullOrEmpty(_storage.url))
+            _storage.AddChannel(Context.User.Id, await channel.ConnectAsync());
+
+            while (string.IsNullOrEmpty(_storage.Url))
             {
                 Console.WriteLine("waiting user input...");
                 await Task.Delay(1_000);
@@ -131,6 +154,72 @@ namespace DiscordBot
 
             _storage.AddData(Context.User.Id, videosUrl);
             return embed;
+        }
+
+        private async Task<MessageComponent?> SearchVideoOptionAsync(string searchQuery, int count)
+        {
+            var videos = new List<VideoSearchResult>();
+            await foreach (var batch in _client.Search.GetResultBatchesAsync(searchQuery, SearchFilter.Video))
+            {
+                foreach (var video in batch.Items)
+                {
+                    if (!(video as VideoSearchResult).Duration.HasValue ||
+                        (video as VideoSearchResult).Duration.Value.TotalMinutes
+                        is > 125d or < 0.5d)
+                    {
+                        continue;
+                    }
+                    videos.Add((VideoSearchResult)video);
+                }
+            }
+
+            var filteredVideos = videos
+                .Take(count)
+                .ToList();
+
+            var videosUrl = new List<string>();
+
+            foreach (var video in filteredVideos)
+            {
+                videosUrl.Add(video.Url);
+            }
+
+            var menuBuilder = new SelectMenuBuilder()
+                .WithPlaceholder("Select an option")
+                .WithCustomId("musicMenu")
+                .WithMinValues(1)
+                .WithMaxValues(1);
+
+
+            var embed = new EmbedBuilder
+            {
+                Title = $"Search by {searchQuery}",
+                Description = $"Total in {filteredVideos.Count}"
+            };
+            var stringa = new StringBuilder();
+            var i = 1;
+            foreach (var video in filteredVideos)
+            {
+                stringa = stringa.AppendLine($"{i} - {video.Title} - ({video.Duration})");
+
+                menuBuilder = menuBuilder.AddOption($"{i} - {video.Title}",
+                    video.Url,
+                    $"({video.Duration})");
+                i++;
+            }
+
+            embed = embed.AddField("Results", stringa)
+                .WithAuthor(Context.Client.CurrentUser)
+                .WithCurrentTimestamp()
+                .WithColor(Color.Gold);
+
+            var builder = new ComponentBuilder()
+                .WithSelectMenu(menuBuilder);
+
+            var components = new MessageComponent(embed, builder);
+
+            _storage.AddData(Context.User.Id, videosUrl);
+            return components;
         }
     }
 }
