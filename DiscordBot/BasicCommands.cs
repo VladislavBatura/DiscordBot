@@ -75,6 +75,15 @@ namespace DiscordBot
                 return;
             }
 
+            channel ??= (Context.User as IGuildUser)?.VoiceChannel;
+            if (channel == null)
+            {
+                _ = await Context.Channel
+                    .SendMessageAsync("User must be in a voice channel," +
+                    " or a voice channel must be passed as an argument.");
+                return;
+            }
+
             var embed = components.embedBuilder.Build();
             var selectOption = components.componentBuilder.Build();
             var msg = await ModifyOriginalResponseAsync((ms) =>
@@ -85,34 +94,42 @@ namespace DiscordBot
             var m = await ReplyAsync("Select track", components: selectOption);
             _storage.MessageId = m.Id;
 
-            channel ??= (Context.User as IGuildUser)?.VoiceChannel;
-            if (channel == null)
-            {
-                _ = await Context.Channel
-                    .SendMessageAsync("User must be in a voice channel," +
-                    " or a voice channel must be passed as an argument.");
-                return;
-            }
 
             await _musicService.JoinAudio(Context.Guild, channel);
 
-            while (string.IsNullOrEmpty(_storage.Url))
-            {
-                Console.WriteLine("waiting user input...");
-                await Task.Delay(1_000);
-            }
+            //while (string.IsNullOrEmpty(_storage.Url))
+            //{
+            //    Console.WriteLine("waiting user input...");
+            //    await Task.Delay(1_000);
+            //}
 
-            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+            //var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
 
-            audioManager.Player.SetAudioClient(_storage.GetChannel(Context.Guild.Id));
+            //audioManager.Player.SetAudioClient(_storage.GetChannel(Context.Guild.Id));
 
-            var tracks = await TrackLoader.LoadAudioTrack(_storage.Url, true);
+            //var tracks = await TrackLoader.LoadAudioTrack(_storage.Url, true);
 
-            await audioManager.Scheduler.Enqueue(tracks[0]);
+            //await audioManager.Scheduler.Enqueue(tracks[0]);
 
             //await _musicService.PlayMusicAsync(Context);
 
             //await _musicService.LeaveAudio(Context.Guild);
+        }
+
+        [SlashCommand("stop", "Stops the audio from playing", runMode: RunMode.Async)]
+        public async Task StopAudioAsync()
+        {
+            await RespondAsync("Stopping the music");
+            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+            await audioManager.Scheduler.Stop();
+        }
+
+        [SlashCommand("skip", "Skips the current track", runMode: RunMode.Async)]
+        public async Task SkipAudioAsync()
+        {
+            await RespondAsync("Skipping current track");
+            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+            await audioManager.Scheduler.NextTrack();
         }
 
         private async Task<EmbedBuilder?> SearchVideoAsync(string searchQuery, int count)
@@ -209,9 +226,12 @@ namespace DiscordBot
             var i = 1;
             foreach (var video in filteredVideos)
             {
+
                 stringa = stringa.AppendLine($"{i} - {video.Title} - ({video.Duration})");
 
-                menuBuilder = menuBuilder.AddOption($"{i} - {video.Title}",
+                var title = video.Title.Length > 80 ? video.Title[0..80] : video.Title;
+
+                menuBuilder = menuBuilder.AddOption($"{i} - {title}",
                     video.Url,
                     $"({video.Duration})");
                 i++;

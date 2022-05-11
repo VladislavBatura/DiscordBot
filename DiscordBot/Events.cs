@@ -1,4 +1,5 @@
 ﻿using Discord;
+using Discord.Addons.Music.Common;
 using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
@@ -12,11 +13,13 @@ namespace DiscordBot
     {
         private readonly Storage _storage;
         private readonly MusicService _musicService;
+        private readonly AudioGuildManager _audioGuildManager;
 
-        public Events(Storage storage, MusicService musicService)
+        public Events(Storage storage, MusicService musicService, AudioGuildManager audioGuildManager)
         {
             _storage = storage;
             _musicService = musicService;
+            _audioGuildManager = audioGuildManager;
         }
         public Task Log(LogMessage arg)
         {
@@ -49,6 +52,15 @@ namespace DiscordBot
             await msg.RespondAsync($"You have selected {text}");
             await msg.Channel.DeleteMessageAsync(_storage.MessageId);
             _storage.Url = text;
+            var chnl = msg.Channel as SocketGuildChannel;
+
+            var audioManager = _audioGuildManager.GetGuildVoiceState(chnl.Guild);
+
+            audioManager.Player.SetAudioClient(_storage.GetChannel(chnl.Guild.Id));
+
+            var tracks = await TrackLoader.LoadAudioTrack(_storage.Url, true);
+
+            await audioManager.Scheduler.Enqueue(tracks[0]);
             return Task.CompletedTask;
         }
     }

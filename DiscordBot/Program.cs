@@ -30,7 +30,8 @@ public class Program
         _guildId = ulong.Parse(_config["GuildId"]);
         var services = BuildServiceProvider();
         _events = new(services.GetRequiredService<Storage>(),
-            services.GetRequiredService<MusicService>());
+            services.GetRequiredService<MusicService>(),
+            services.GetRequiredService<AudioGuildManager>());
 
         try
         {
@@ -42,7 +43,6 @@ public class Program
             _client.Log += _events.Log;
             _commands.Log += _events.Log;
             _client.Ready += ReadyAsync;
-            _client.MessageReceived += _events.CatchMessage;
             _client.SelectMenuExecuted += _events.CatchSelectOption;
 
             var token = _config["token"];
@@ -66,7 +66,8 @@ public class Program
 
     private async Task ReadyAsync()
     {
-        await _commands.RegisterCommandsToGuildAsync(_guildId);
+        _ = await _commands.RegisterCommandsGloballyAsync();
+        //await _commands.RegisterCommandsToGuildAsync(_guildId);
     }
 
     private IServiceProvider BuildServiceProvider()

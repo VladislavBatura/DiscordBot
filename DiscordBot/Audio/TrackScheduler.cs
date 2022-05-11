@@ -46,6 +46,12 @@ namespace DiscordBot.Audio
                 _player.Stop();
         }
 
+        public Task Stop()
+        {
+            _player.Stop();
+            return Task.CompletedTask;
+        }
+
         private Task OnTrackStartAsync(IAudioClient audioClient, IAudioSource track)
         {
             Console.WriteLine("Track start! " + track.Info.Title);
