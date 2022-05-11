@@ -13,7 +13,7 @@ namespace DiscordBot
         private readonly ConcurrentDictionary<ulong, IEnumerable<string>> _youtubeStorage
             = new();
         private readonly ConcurrentDictionary<ulong, IAudioClient> _channels = new();
-        public string Url { get; set; } = "";
+        public string Url { get; set; } = string.Empty;
         public ulong MessageId { get; set; }
         public Stream InputStream { get; set; }
         public Stream OutputStream { get; set; }
@@ -42,9 +42,10 @@ namespace DiscordBot
             _ = _youtubeStorage.TryRemove(id, out _);
         }
 
-        public void RemoveChannel(ulong id)
+        public IAudioClient? RemoveChannel(ulong id)
         {
-            _ = _channels.TryRemove(id, out _);
+            _ = _channels.TryRemove(id, out var channel);
+            return channel;
         }
 
         public string GetData(ulong id, int position)

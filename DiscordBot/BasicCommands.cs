@@ -6,6 +6,10 @@ using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
 using CliWrap;
 using YoutubeExplode.Search;
+using Discord.Addons.Music.Player;
+using Discord.Addons.Music.Source;
+using Discord.Addons.Music.Common;
+using Discord.Addons.Music.Objects;
 
 namespace DiscordBot
 {
@@ -17,18 +21,21 @@ namespace DiscordBot
         private readonly Storage _storage;
         private readonly Youtube _youtube;
         private readonly MusicService _musicService;
+        private readonly AudioGuildManager _audioGuildManager;
 
         public BasicCommands(CommandHandler handler,
                              YoutubeClient client,
                              Storage storage,
                              Youtube youtube,
-                             MusicService musicService)
+                             MusicService musicService,
+                             AudioGuildManager audioManager)
         {
             _handler = handler;
             _client = client;
             _storage = storage;
             _youtube = youtube;
             _musicService = musicService;
+            _audioGuildManager = audioManager;
         }
 
         [SlashCommand("say", "Echoes message")]
@@ -87,7 +94,7 @@ namespace DiscordBot
                 return;
             }
 
-            _storage.AddChannel(Context.User.Id, await channel.ConnectAsync());
+            await _musicService.JoinAudio(Context.Guild, channel);
 
             while (string.IsNullOrEmpty(_storage.Url))
             {
@@ -95,15 +102,17 @@ namespace DiscordBot
                 await Task.Delay(1_000);
             }
 
-            if (_storage.ChannelExist(Context.User.Id))
-            {
-                await _musicService.PlayMusicAsync(Context, _storage.GetChannel(Context.User.Id));
-            }
-            else
-            {
-                var audioClient = await channel.ConnectAsync();
-                await _musicService.PlayMusicAsync(Context, audioClient);
-            }
+            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+
+            audioManager.Player.SetAudioClient(_storage.GetChannel(Context.Guild.Id));
+
+            var tracks = await TrackLoader.LoadAudioTrack(_storage.Url, true);
+
+            await audioManager.Scheduler.Enqueue(tracks[0]);
+
+            //await _musicService.PlayMusicAsync(Context);
+
+            //await _musicService.LeaveAudio(Context.Guild);
         }
 
         private async Task<EmbedBuilder?> SearchVideoAsync(string searchQuery, int count)

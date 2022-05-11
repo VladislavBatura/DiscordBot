@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using CliWrap;
+using Discord;
 using Discord.Audio;
 using Discord.Interactions;
 using Discord.WebSocket;
@@ -24,11 +25,8 @@ namespace DiscordBot
             _client = client;
         }
 
-        public async Task PlayMusicAsync(SocketInteractionContext context,
-            IAudioClient audioClient)
+        public async Task PlayMusicAsync(SocketInteractionContext context)
         {
-            //_storage.AddChannel(context.User.Id, audioClient);
-
             StreamManifest streamManifest = new(null);
 
             try
@@ -49,21 +47,18 @@ namespace DiscordBot
             }
 
             var streamInfo = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
-            if (_storage.InputStream == null)
+            if (_storage.InputStream is null)
             {
                 var stream = await _client.Videos.Streams.GetAsync(streamInfo);
                 _storage.InputStream = stream;
             }
-            if (_storage.OutputStream == null)
+            if (_storage.OutputStream is null)
             {
                 _storage.OutputStream = new MemoryStream();
             }
 
-            _ = await Cli.Wrap("ffmpeg")
-                .WithArguments("-hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1")
-                .WithStandardInputPipe(PipeSource.FromStream(_storage.InputStream))
-                .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
-                .ExecuteAsync();
+            await CreateProcessAsync();
+            var audioClient = _storage.GetChannel(context.Guild.Id);
 
             using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
             try
@@ -78,63 +73,92 @@ namespace DiscordBot
             }
         }
 
-        public async Task PlayMusicAsync(SocketMessageComponent context, string url)
+        public async Task JoinAudio(IGuild guild, IVoiceChannel channel)
         {
-            if (!_storage.ChannelExist(context.User.Id))
+            if (_storage.ChannelExist(guild.Id) || channel.Guild.Id != guild.Id)
             {
-                _ = await context.Channel.SendMessageAsync("Зайди в голосовой канал");
                 return;
             }
 
-            var audioClient = _storage.GetChannel(context.User.Id);
+            var audioClient = await channel.ConnectAsync();
+            _storage.AddChannel(guild.Id, audioClient);
+        }
 
-            StreamManifest streamManifest = new(null);
+        public async Task LeaveAudio(IGuild guild)
+        {
+            var channel = _storage.RemoveChannel(guild.Id);
+            if (channel is not null)
+            {
+                await channel.StopAsync();
+            }
+        }
 
-            try
-            {
-                streamManifest = await _client.Videos.Streams.GetManifestAsync(url);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-                _ = await context.Channel.SendMessageAsync("Something went wrong...");
-                return;
-            }
-
-            if (!streamManifest.Streams.Any())
-            {
-                _ = await context.Channel.SendMessageAsync("Can't find any music source");
-                return;
-            }
-
-            var streamInfo = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
-            if (_storage.InputStream == null)
-            {
-                var stream = await _client.Videos.Streams.GetAsync(streamInfo);
-                _storage.InputStream = stream;
-            }
-            if (_storage.OutputStream == null)
-            {
-                _storage.OutputStream = new MemoryStream();
-            }
-
+        private async Task CreateProcessAsync()
+        {
             _ = await Cli.Wrap("ffmpeg")
                 .WithArguments("-hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1")
                 .WithStandardInputPipe(PipeSource.FromStream(_storage.InputStream))
                 .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
                 .ExecuteAsync();
-
-            using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
-            try
-            {
-                await discord.WriteAsync((_storage.OutputStream as MemoryStream)
-                    .ToArray()
-                    .AsMemory(0, (int)(_storage.OutputStream as MemoryStream).Length));
-            }
-            finally
-            {
-                await discord.FlushAsync();
-            }
         }
+
+        //public async Task PlayMusicAsync(SocketMessageComponent context, string url)
+        //{
+        //    if (!_storage.ChannelExist(context.User.Id))
+        //    {
+        //        _ = await context.Channel.SendMessageAsync("Зайди в голосовой канал");
+        //        return;
+        //    }
+
+        //    var audioClient = _storage.GetChannel(context.User.Id);
+
+        //    StreamManifest streamManifest = new(null);
+
+        //    try
+        //    {
+        //        streamManifest = await _client.Videos.Streams.GetManifestAsync(url);
+        //    }
+        //    catch (Exception e)
+        //    {
+        //        Console.WriteLine(e);
+        //        _ = await context.Channel.SendMessageAsync("Something went wrong...");
+        //        return;
+        //    }
+
+        //    if (!streamManifest.Streams.Any())
+        //    {
+        //        _ = await context.Channel.SendMessageAsync("Can't find any music source");
+        //        return;
+        //    }
+
+        //    var streamInfo = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+        //    if (_storage.InputStream == null)
+        //    {
+        //        var stream = await _client.Videos.Streams.GetAsync(streamInfo);
+        //        _storage.InputStream = stream;
+        //    }
+        //    if (_storage.OutputStream == null)
+        //    {
+        //        _storage.OutputStream = new MemoryStream();
+        //    }
+
+        //    _ = await Cli.Wrap("ffmpeg")
+        //        .WithArguments("-hide_banner -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1")
+        //        .WithStandardInputPipe(PipeSource.FromStream(_storage.InputStream))
+        //        .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
+        //        .ExecuteAsync();
+
+        //    using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
+        //    try
+        //    {
+        //        await discord.WriteAsync((_storage.OutputStream as MemoryStream)
+        //            .ToArray()
+        //            .AsMemory(0, (int)(_storage.OutputStream as MemoryStream).Length));
+        //    }
+        //    finally
+        //    {
+        //        await discord.FlushAsync();
+        //    }
+        //}
     }
 }

@@ -6,6 +6,7 @@ using Discord.Interactions;
 using VkNet.AudioBypassService.Extensions;
 using YoutubeExplode;
 using Microsoft.Extensions.Configuration;
+using Discord.Addons.Music.Player;
 
 public class Program
 {
@@ -81,6 +82,7 @@ public class Program
             .AddSingleton(x =>
                 new MusicService(x.GetRequiredService<Storage>(),
                                  x.GetRequiredService<YoutubeClient>()))
+            .AddSingleton<AudioGuildManager>()
             .BuildServiceProvider();
     }
 }
