@@ -10,6 +10,8 @@ using Discord.Addons.Music.Player;
 using Discord.Addons.Music.Source;
 using Discord.Addons.Music.Common;
 using Discord.Addons.Music.Objects;
+using VkNet;
+using VkNet.Utils;
 
 namespace DiscordBot
 {
@@ -22,13 +24,15 @@ namespace DiscordBot
         private readonly Youtube _youtube;
         private readonly MusicService _musicService;
         private readonly AudioGuildManager _audioGuildManager;
+        private readonly VkApi _vk;
 
         public BasicCommands(CommandHandler handler,
                              YoutubeClient client,
                              Storage storage,
                              Youtube youtube,
                              MusicService musicService,
-                             AudioGuildManager audioManager)
+                             AudioGuildManager audioManager,
+                             VkApi vk)
         {
             _handler = handler;
             _client = client;
@@ -36,6 +40,7 @@ namespace DiscordBot
             _youtube = youtube;
             _musicService = musicService;
             _audioGuildManager = audioManager;
+            _vk = vk;
         }
 
         [SlashCommand("say", "Echoes message")]
@@ -45,7 +50,9 @@ namespace DiscordBot
         }
 
         [SlashCommand("play", "Searches audio in youtube and plays it", false, RunMode.Async)]
-        public async Task SearchAudioAsync(string name, int count = 10, IVoiceChannel? channel = null)
+        public async Task SearchAudioAsync(string name,
+                                           int count = 10,
+                                           IVoiceChannel? channel = null)
         {
             await DeferAsync();
             //var embedBuilder = await SearchVideoAsync(name, count);
@@ -130,6 +137,26 @@ namespace DiscordBot
             await RespondAsync("Skipping current track");
             var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
             await audioManager.Scheduler.NextTrack();
+        }
+
+        [SlashCommand("playvk", "Plays music from vk", runMode: RunMode.Async)]
+        public async Task PlayVkAudioAsync(int count = 10,
+                                           long userId = default,
+                                           long offset = 0,
+                                           IVoiceChannel? channel = null)
+        {
+            await DeferAsync();
+
+            if (!_storage.IsVkEnabled)
+            {
+                _ = await ModifyOriginalResponseAsync((x) =>
+                  {
+                      x.Content = "Vk is not enabled for this session. Ask Aviator to enable it";
+                  });
+                return;
+            }
+
+            _ = PlayVkMusicAsync(count, userId, offset, channel);
         }
 
         private async Task<EmbedBuilder?> SearchVideoAsync(string searchQuery, int count)
@@ -249,6 +276,114 @@ namespace DiscordBot
 
             _storage.AddData(Context.User.Id, videosUrl);
             return components;
+        }
+
+        private async Task PlayVkMusicAsync(int count = 10,
+                                           long userId = default,
+                                           long offset = 0,
+                                           IVoiceChannel? channel = null)
+        {
+            var audios = userId is 0
+                ? await _vk.Audio.GetAsync(new()
+                {
+                    Count = count,
+                    Offset = offset
+                })
+                : await _vk.Audio.GetAsync(new()
+                {
+                    Count = count,
+                    OwnerId = userId,
+                    Offset = offset
+                });
+
+            var embedBuilder = new EmbedBuilder()
+            {
+                Title = $"{count} аудиозаписей из вк со смещенией {offset}"
+            };
+
+            var stringa = new StringBuilder();
+            //var i = 1;
+            //foreach (var audio in audios)
+            //{
+            //    stringa = stringa.AppendLine($"{i} -" +
+            //        $" {audio.Title} -" +
+            //        $" {audio.Artist} - " +
+            //        $"({audio.Duration})");
+
+            //    var title = audio.Title.Length > 80 ? audio.Title[0..80] : audio.Title;
+            //    i++;
+            //}
+
+            for (var i = 1; i <= 10; i++)
+            {
+                stringa = stringa.AppendLine($"{i} -" +
+                    $" {audios[i].Title} -" +
+                    $" {audios[i].Artist} - " +
+                    $"({audios[i].Duration})");
+            }
+
+            embedBuilder = embedBuilder
+                .AddField("Результат", stringa)
+                .WithAuthor(Context.Client.CurrentUser)
+                .WithCurrentTimestamp()
+                .WithColor(Color.Gold);
+
+            var embed = embedBuilder.Build();
+
+            _ = await ModifyOriginalResponseAsync((x) =>
+            {
+                x.Embed = embed;
+                x.Content = string.Empty;
+            });
+
+            channel ??= (Context.User as IGuildUser)?.VoiceChannel;
+            if (channel == null)
+            {
+                _ = await Context.Channel
+                    .SendMessageAsync("User must be in a voice channel," +
+                    " or a voice channel must be passed as an argument.");
+                return;
+            }
+
+            _storage.OutputStream = new MemoryStream();
+
+            await _musicService.JoinAudio(Context.Guild, channel);
+
+            foreach (var audio in audios)
+            {
+                _ = await Cli.Wrap("ffmpeg")
+                    .WithArguments($"-hide_banner -loglevel panic -i {audio.Url} -ac 2 -f s16le -ar 48000 pipe:1")
+                    .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
+                    .ExecuteAsync();
+
+                var audioClient = _storage.GetChannel(Context.Guild.Id);
+
+                using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
+                try
+                {
+                    await discord.WriteAsync((_storage.OutputStream as MemoryStream)
+                        .ToArray()
+                        .AsMemory(0, (int)(_storage.OutputStream as MemoryStream).Length));
+                }
+                finally
+                {
+                    await discord.FlushAsync();
+                    await _storage.OutputStream.FlushAsync();
+                }
+            }
+            return;
+        }
+
+        public Uri DecodeAudioUrl(Uri audioUrl)
+        {
+            var segments = audioUrl.Segments.ToList();
+
+            segments.RemoveAt((segments.Count - 1) / 2);
+            segments.RemoveAt(segments.Count - 1);
+
+            segments[segments.Count - 1] = segments[segments.Count - 1].Replace("/", ".mp3");
+
+            return new Uri($"{audioUrl.Scheme}://{audioUrl.Host}{string.Join("", segments)}{audioUrl.Query}");
         }
     }
 }

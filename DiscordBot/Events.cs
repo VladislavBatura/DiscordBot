@@ -54,13 +54,9 @@ namespace DiscordBot
             _storage.Url = text;
             var chnl = msg.Channel as SocketGuildChannel;
 
-            var audioManager = _audioGuildManager.GetGuildVoiceState(chnl.Guild);
-
-            audioManager.Player.SetAudioClient(_storage.GetChannel(chnl.Guild.Id));
-
-            var tracks = await TrackLoader.LoadAudioTrack(_storage.Url, true);
-
-            await audioManager.Scheduler.Enqueue(tracks[0]);
+            _ = _audioGuildManager.PlayMusic(chnl.Guild,
+                _storage.GetChannel(chnl.Guild.Id),
+                _storage.Url).ConfigureAwait(false);
             return Task.CompletedTask;
         }
     }

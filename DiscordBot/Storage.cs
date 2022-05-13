@@ -14,6 +14,7 @@ namespace DiscordBot
             = new();
         private readonly ConcurrentDictionary<ulong, IAudioClient> _channels = new();
         public string Url { get; set; } = string.Empty;
+        public bool IsVkEnabled { get; set; } = true;
         public ulong MessageId { get; set; }
         public Stream InputStream { get; set; }
         public Stream OutputStream { get; set; }

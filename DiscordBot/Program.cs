@@ -7,6 +7,10 @@ using VkNet.AudioBypassService.Extensions;
 using YoutubeExplode;
 using Microsoft.Extensions.Configuration;
 using Discord.Addons.Music.Player;
+using VkNet.Model.Attachments;
+using VkNet;
+using VkNet.Model;
+using VkNet.Enums.Filters;
 
 public class Program
 {
@@ -37,8 +41,35 @@ public class Program
         {
             var client = services.GetRequiredService<DiscordSocketClient>();
             var commands = services.GetRequiredService<InteractionService>();
+            var vk = services.GetRequiredService<VkApi>();
             _client = client;
             _commands = commands;
+
+            try
+            {
+                var login = _config["VkLogin"];
+                var password = _config["VkPassword"];
+                await vk.AuthorizeAsync(new ApiAuthParams
+                {
+                    ApplicationId = 1998,
+                    TwoFactorSupported = true,
+                    Login = login,
+                    Password = password,
+                    Settings = Settings.All,
+                    TwoFactorAuthorization = () =>
+                    {
+                        Console.WriteLine("For Vk we need your code, you have 2 minutes to enter it");
+                        return Console.ReadLine();
+                    }
+                });
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.ToString());
+                var storage = services.GetRequiredService<Storage>();
+                storage.IsVkEnabled = false;
+            }
+
 
             _client.Log += _events.Log;
             _commands.Log += _events.Log;
@@ -60,7 +91,7 @@ public class Program
         }
         finally
         {
-            
+
         }
     }
 
@@ -76,7 +107,7 @@ public class Program
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>()))
             .AddSingleton<CommandHandler>()
-            .AddAudioBypass()
+            .AddSingleton(x => new VkApi(new ServiceCollection().AddAudioBypass()))
             .AddSingleton<YoutubeClient>()
             .AddSingleton<Storage>()
             .AddSingleton(x => new Youtube(_config))

@@ -5,6 +5,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Discord;
+using Discord.Addons.Music.Common;
+using Discord.Audio;
 using DiscordBot.Audio;
 
 namespace DiscordBot
@@ -24,6 +26,17 @@ namespace DiscordBot
             voiceState = VoiceStates[guild.Id];
 
             return voiceState;
+        }
+
+        public async Task PlayMusic(IGuild guild, IAudioClient audioClient, string url)
+        {
+            var audioManager = GetGuildVoiceState(guild);
+
+            audioManager.Player.SetAudioClient(audioClient);
+
+            var tracks = await TrackLoader.LoadAudioTrack(url, true);
+
+            _ = audioManager.Scheduler.Enqueue(tracks[0]);
         }
     }
 }
