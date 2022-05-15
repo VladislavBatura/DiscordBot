@@ -43,42 +43,31 @@ namespace DiscordBot
             _vk = vk;
         }
 
-        [SlashCommand("say", "Echoes message")]
+        [SlashCommand("say", "Повторяет сообщение")]
         public async Task SayAsync(string echo)
         {
             await RespondAsync(echo);
         }
 
-        [SlashCommand("play", "Searches audio in youtube and plays it", false, RunMode.Async)]
+        [SlashCommand("play", "Ищет аудио в ютубе и играет его", false, RunMode.Async)]
         public async Task SearchAudioAsync(string name,
                                            int count = 10,
                                            IVoiceChannel? channel = null)
         {
             await DeferAsync();
-            //var embedBuilder = await SearchVideoAsync(name, count);
-            //if (embedBuilder is null)
-            //{
-            //    _ = await ModifyOriginalResponseAsync((ms) =>
-            //      {
-            //          ms.Content = "Failed to search";
-            //      });
-            //    return;
-            //}
 
-            //var embed = embedBuilder.Build();
-            //var msg = await ModifyOriginalResponseAsync((ms) =>
-            //{
-            //    ms.Embed = embed;
-            //});
+            if (string.IsNullOrEmpty(name))
+            {
+                await ModifyMessage("Введи что-нибудь в поиск, дурбелик", null);
+                return;
+            }
+            count = count > 15 ? 15 : count;
 
             var components = await SearchVideoOptionAsync(name, count);
 
             if (components is null)
             {
-                _ = await ModifyOriginalResponseAsync((ms) =>
-                  {
-                      ms.Content = "Failed to search";
-                  });
+                await ModifyMessage("Ничего не нашло, давай по новой", null);
                 return;
             }
 
@@ -86,44 +75,22 @@ namespace DiscordBot
             if (channel == null)
             {
                 _ = await Context.Channel
-                    .SendMessageAsync("User must be in a voice channel," +
-                    " or a voice channel must be passed as an argument.");
+                    .SendMessageAsync("Пользователь должен быть в голосовом канале" +
+                    " или голосовой канал должен быть передан как параметр");
                 return;
             }
 
             var embed = components.embedBuilder.Build();
             var selectOption = components.componentBuilder.Build();
-            var msg = await ModifyOriginalResponseAsync((ms) =>
-            {
-                ms.Embed = embed;
-            });
+            await ModifyMessage(null, embed);
 
-            var m = await ReplyAsync("Select track", components: selectOption);
+            var m = await ReplyAsync("Выбери трек", components: selectOption);
             _storage.MessageId = m.Id;
 
-
             await _musicService.JoinAudio(Context.Guild, channel);
-
-            //while (string.IsNullOrEmpty(_storage.Url))
-            //{
-            //    Console.WriteLine("waiting user input...");
-            //    await Task.Delay(1_000);
-            //}
-
-            //var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
-
-            //audioManager.Player.SetAudioClient(_storage.GetChannel(Context.Guild.Id));
-
-            //var tracks = await TrackLoader.LoadAudioTrack(_storage.Url, true);
-
-            //await audioManager.Scheduler.Enqueue(tracks[0]);
-
-            //await _musicService.PlayMusicAsync(Context);
-
-            //await _musicService.LeaveAudio(Context.Guild);
         }
 
-        [SlashCommand("stop", "Stops the audio from playing", runMode: RunMode.Async)]
+        [SlashCommand("stop", "Стопит аудио", runMode: RunMode.Async)]
         public async Task StopAudioAsync()
         {
             await RespondAsync("Stopping the music");
@@ -131,7 +98,7 @@ namespace DiscordBot
             await audioManager.Scheduler.Stop();
         }
 
-        [SlashCommand("skip", "Skips the current track", runMode: RunMode.Async)]
+        [SlashCommand("skip", "Скипает аудио", runMode: RunMode.Async)]
         public async Task SkipAudioAsync()
         {
             await RespondAsync("Skipping current track");
@@ -139,7 +106,7 @@ namespace DiscordBot
             await audioManager.Scheduler.NextTrack();
         }
 
-        [SlashCommand("playvk", "Plays music from vk", runMode: RunMode.Async)]
+        [SlashCommand("playvk", "Играет музыку из вк", runMode: RunMode.Async)]
         public async Task PlayVkAudioAsync(int count = 10,
                                            long userId = default,
                                            long offset = 0,
@@ -151,62 +118,12 @@ namespace DiscordBot
             {
                 _ = await ModifyOriginalResponseAsync((x) =>
                   {
-                      x.Content = "Vk is not enabled for this session. Ask Aviator to enable it";
+                      x.Content = "Вк не включён. Попроси Aviator'а включить.";
                   });
                 return;
             }
 
             _ = PlayVkMusicAsync(count, userId, offset, channel);
-        }
-
-        private async Task<EmbedBuilder?> SearchVideoAsync(string searchQuery, int count)
-        {
-            var videos = new List<VideoSearchResult>();
-            await foreach (var batch in _client.Search.GetResultBatchesAsync(searchQuery, SearchFilter.Video))
-            {
-                foreach (var video in batch.Items)
-                {
-                    if (!(video as VideoSearchResult).Duration.HasValue ||
-                        (video as VideoSearchResult).Duration.Value.TotalMinutes
-                        is > 125d or < 0.5d)
-                    {
-                        continue;
-                    }
-                    videos.Add((VideoSearchResult)video);
-                }
-            }
-
-            var filteredVideos = videos
-                .Take(count)
-                .ToList();
-
-            var videosUrl = new List<string>();
-
-            foreach (var video in filteredVideos)
-            {
-                videosUrl.Add(video.Url);
-            }
-
-            var embed = new EmbedBuilder
-            {
-                Title = $"Search by {searchQuery}",
-                Description = $"Total in {filteredVideos.Count}"
-            };
-            var stringa = new StringBuilder();
-            var i = 1;
-            foreach (var video in filteredVideos)
-            {
-                stringa = stringa.AppendLine($"{i} - {video.Title} - ({video.Duration})");
-                i++;
-            }
-
-            embed = embed.AddField("Results", stringa)
-                .WithAuthor(Context.Client.CurrentUser)
-                .WithCurrentTimestamp()
-                .WithColor(Color.Gold);
-
-            _storage.AddData(Context.User.Id, videosUrl);
-            return embed;
         }
 
         private async Task<MessageComponent?> SearchVideoOptionAsync(string searchQuery, int count)
@@ -238,7 +155,7 @@ namespace DiscordBot
             }
 
             var menuBuilder = new SelectMenuBuilder()
-                .WithPlaceholder("Select an option")
+                .WithPlaceholder("Выбери опцию")
                 .WithCustomId("musicMenu")
                 .WithMinValues(1)
                 .WithMaxValues(1);
@@ -246,8 +163,8 @@ namespace DiscordBot
 
             var embed = new EmbedBuilder
             {
-                Title = $"Search by {searchQuery}",
-                Description = $"Total in {filteredVideos.Count}"
+                Title = $"Поиск по {searchQuery}",
+                Description = $"В общем количестве {filteredVideos.Count}"
             };
             var stringa = new StringBuilder();
             var i = 1;
@@ -264,7 +181,7 @@ namespace DiscordBot
                 i++;
             }
 
-            embed = embed.AddField("Results", stringa)
+            embed = embed.AddField("Результаты", stringa)
                 .WithAuthor(Context.Client.CurrentUser)
                 .WithCurrentTimestamp()
                 .WithColor(Color.Gold);
@@ -283,18 +200,31 @@ namespace DiscordBot
                                            long offset = 0,
                                            IVoiceChannel? channel = null)
         {
+            count = count > 6000 ? 6000 : count;
+            offset = offset > 6000 ? 6000 : offset;
             var audios = userId is 0
-                ? await _vk.Audio.GetAsync(new()
+                ? _vk.Audio.Get(new()
                 {
                     Count = count,
                     Offset = offset
                 })
-                : await _vk.Audio.GetAsync(new()
+                : _vk.Audio.Get(new()
                 {
                     Count = count,
                     OwnerId = userId,
                     Offset = offset
                 });
+
+            if (!audios.Any())
+            {
+                _ = await ModifyOriginalResponseAsync((x) =>
+                {
+                    x.Content = "Не получилось забрать музыку." +
+                    " Либо серваки легли, либо ты заюзал неправильный id." +
+                    " Используй циферки из адресной строки на странице своих аудио, либо ничего не трогай";
+                });
+                return;
+            }
 
             var embedBuilder = new EmbedBuilder()
             {
@@ -302,17 +232,6 @@ namespace DiscordBot
             };
 
             var stringa = new StringBuilder();
-            //var i = 1;
-            //foreach (var audio in audios)
-            //{
-            //    stringa = stringa.AppendLine($"{i} -" +
-            //        $" {audio.Title} -" +
-            //        $" {audio.Artist} - " +
-            //        $"({audio.Duration})");
-
-            //    var title = audio.Title.Length > 80 ? audio.Title[0..80] : audio.Title;
-            //    i++;
-            //}
 
             for (var i = 1; i <= 10; i++)
             {
@@ -374,16 +293,13 @@ namespace DiscordBot
             return;
         }
 
-        public Uri DecodeAudioUrl(Uri audioUrl)
+        private async Task ModifyMessage(string? message, Embed? embed)
         {
-            var segments = audioUrl.Segments.ToList();
-
-            segments.RemoveAt((segments.Count - 1) / 2);
-            segments.RemoveAt(segments.Count - 1);
-
-            segments[segments.Count - 1] = segments[segments.Count - 1].Replace("/", ".mp3");
-
-            return new Uri($"{audioUrl.Scheme}://{audioUrl.Host}{string.Join("", segments)}{audioUrl.Query}");
+            _ = await ModifyOriginalResponseAsync((x) =>
+            {
+                x.Content = message;
+                x.Embed = embed;
+            });
         }
     }
 }

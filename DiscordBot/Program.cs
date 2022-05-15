@@ -6,11 +6,12 @@ using Discord.Interactions;
 using VkNet.AudioBypassService.Extensions;
 using YoutubeExplode;
 using Microsoft.Extensions.Configuration;
-using Discord.Addons.Music.Player;
-using VkNet.Model.Attachments;
 using VkNet;
 using VkNet.Model;
 using VkNet.Enums.Filters;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Discord.Addons.Hosting;
 
 public class Program
 {
