@@ -1,6 +1,9 @@
 ﻿using Discord;
+using Discord.Addons.Hosting;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,32 +13,39 @@ using System.Threading.Tasks;
 
 namespace DiscordBot
 {
-    public class CommandHandler
+    public class CommandHandler : DiscordClientService
     {
         private readonly IServiceProvider _services;
         private readonly InteractionService _commands;
-        private readonly DiscordSocketClient _client;
+        private readonly IConfiguration _config;
+        private readonly Events _events;
 
-        public CommandHandler(IServiceProvider services, InteractionService commands, DiscordSocketClient client)
+        public CommandHandler(IServiceProvider services,
+                              InteractionService commands,
+                              DiscordSocketClient client,
+                              ILogger<CommandHandler> logger,
+                              IConfiguration config,
+                              Events events) : base(client, logger)
         {
             _services = services;
             _commands = commands;
-            _client = client;
+            _config = config;
+            _events = events;
         }
 
-        public async Task InitializeAsync()
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await _commands.AddModulesAsync(
-                assembly: Assembly.GetEntryAssembly(),
-                services: _services);
-            _client.InteractionCreated += HandleInteraction;
+            Client.InteractionCreated += HandleInteraction;
+            Client.Ready += _events.ReadyAsync;
+            Client.SelectMenuExecuted += _events.CatchSelectOption;
 
             _commands.SlashCommandExecuted += SlashCommandExecuted;
             _commands.ContextCommandExecuted += ContextCommandExecuted;
             _commands.ComponentCommandExecuted += ComponentCommandExecuted;
+            await _commands.AddModulesAsync(
+                assembly: Assembly.GetEntryAssembly(),
+                services: _services);
         }
-
-        
 
         private Task ComponentCommandExecuted(ComponentCommandInfo arg1,
                                               IInteractionContext arg2,
@@ -134,7 +144,7 @@ namespace DiscordBot
         {
             try
             {
-                var context = new SocketInteractionContext(_client, arg);
+                var context = new SocketInteractionContext(Client, arg);
                 await _commands.ExecuteCommandAsync(context, _services);
             }
             catch (Exception e)

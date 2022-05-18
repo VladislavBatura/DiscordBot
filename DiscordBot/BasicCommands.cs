@@ -12,35 +12,38 @@ using Discord.Addons.Music.Common;
 using Discord.Addons.Music.Objects;
 using VkNet;
 using VkNet.Utils;
+using Microsoft.Extensions.Logging;
+using DiscordBot.HostedServices;
+using DiscordBot.Models;
 
 namespace DiscordBot
 {
     public class BasicCommands : InteractionModuleBase<SocketInteractionContext>
     {
         public InteractionService Commands { get; set; }
-        private readonly CommandHandler _handler;
         private readonly YoutubeClient _client;
         private readonly Storage _storage;
-        private readonly Youtube _youtube;
         private readonly MusicService _musicService;
         private readonly AudioGuildManager _audioGuildManager;
         private readonly VkApi _vk;
+        private readonly ILogger<BasicCommands> _logger;
+        private readonly VkApiService _vkService;
 
-        public BasicCommands(CommandHandler handler,
-                             YoutubeClient client,
+        public BasicCommands(YoutubeClient client,
                              Storage storage,
-                             Youtube youtube,
                              MusicService musicService,
                              AudioGuildManager audioManager,
-                             VkApi vk)
+                             VkApi vk,
+                             ILogger<BasicCommands> logger,
+                             VkApiService vkService)
         {
-            _handler = handler;
             _client = client;
             _storage = storage;
-            _youtube = youtube;
             _musicService = musicService;
             _audioGuildManager = audioManager;
             _vk = vk;
+            _logger = logger;
+            _vkService = vkService;
         }
 
         [SlashCommand("say", "Повторяет сообщение")]
@@ -123,7 +126,33 @@ namespace DiscordBot
                 return;
             }
 
-            _ = PlayVkMusicAsync(count, userId, offset, channel);
+            await PlayVkMusicAsync(count, userId, offset, channel);
+        }
+
+        [SlashCommand("loginvk", "Логинится в вк через двухфакторку", runMode: RunMode.Async)]
+        public async Task LoginVk(string twoFactorCode)
+        {
+            if (string.IsNullOrEmpty(twoFactorCode) || twoFactorCode.Trim().Length != 6)
+            {
+                await RespondAsync("Введи код");
+                return;
+            }
+
+            if (_storage.IsVkEnabled)
+            {
+                await RespondAsync("Уже включено");
+                return;
+            }
+
+            var resultOfLogin = await _vkService.EnableVk(twoFactorCode);
+
+            if (!resultOfLogin)
+            {
+                await RespondAsync("Не получилось");
+                return;
+            }
+            await RespondAsync("Всё окей, пробуй");
+            return;
         }
 
         private async Task<MessageComponent?> SearchVideoOptionAsync(string searchQuery, int count)
@@ -200,6 +229,8 @@ namespace DiscordBot
                                            long offset = 0,
                                            IVoiceChannel? channel = null)
         {
+            
+
             count = count > 6000 ? 6000 : count;
             offset = offset > 6000 ? 6000 : offset;
             var audios = userId is 0
@@ -233,9 +264,9 @@ namespace DiscordBot
 
             var stringa = new StringBuilder();
 
-            for (var i = 1; i <= 10; i++)
+            for (var i = 0; i < audios.Count; i++)
             {
-                stringa = stringa.AppendLine($"{i} -" +
+                stringa = stringa.AppendLine($"{i + 1} -" +
                     $" {audios[i].Title} -" +
                     $" {audios[i].Artist} - " +
                     $"({audios[i].Duration})");
@@ -268,28 +299,32 @@ namespace DiscordBot
 
             await _musicService.JoinAudio(Context.Guild, channel);
 
-            foreach (var audio in audios)
-            {
-                _ = await Cli.Wrap("ffmpeg")
-                    .WithArguments($"-hide_banner -loglevel panic -i {audio.Url} -ac 2 -f s16le -ar 48000 pipe:1")
-                    .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
-                    .ExecuteAsync();
+            _ = _audioGuildManager.PlayMusicVk(Context.Guild,
+                                                 _storage.GetChannel(Context.Guild.Id),
+                                                 audios);
 
-                var audioClient = _storage.GetChannel(Context.Guild.Id);
+            //foreach (var audio in audios)
+            //{
+            //    _ = await Cli.Wrap("ffmpeg")
+            //        .WithArguments($"-hide_banner -loglevel panic -i {audio.Url} -ac 2 -f s16le -ar 48000 pipe:1")
+            //        .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
+            //        .ExecuteAsync();
 
-                using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
-                try
-                {
-                    await discord.WriteAsync((_storage.OutputStream as MemoryStream)
-                        .ToArray()
-                        .AsMemory(0, (int)(_storage.OutputStream as MemoryStream).Length));
-                }
-                finally
-                {
-                    await discord.FlushAsync();
-                    await _storage.OutputStream.FlushAsync();
-                }
-            }
+            //    var audioClient = _storage.GetChannel(Context.Guild.Id);
+
+            //    using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
+            //    try
+            //    {
+            //        await discord.WriteAsync((_storage.OutputStream as MemoryStream)
+            //            .ToArray()
+            //            .AsMemory(0, (int)(_storage.OutputStream as MemoryStream).Length));
+            //    }
+            //    finally
+            //    {
+            //        await discord.FlushAsync();
+            //        await _storage.OutputStream.FlushAsync();
+            //    }
+            //}
             return;
         }
 

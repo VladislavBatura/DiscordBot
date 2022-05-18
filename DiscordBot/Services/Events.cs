@@ -1,5 +1,6 @@
 ﻿using Discord;
 using Discord.Addons.Music.Common;
+using Discord.Interactions;
 using Discord.WebSocket;
 using System;
 using System.Collections.Generic;
@@ -9,17 +10,22 @@ using System.Threading.Tasks;
 
 namespace DiscordBot
 {
-    internal class Events
+    public class Events
     {
         private readonly Storage _storage;
         private readonly MusicService _musicService;
         private readonly AudioGuildManager _audioGuildManager;
+        private readonly InteractionService _commands;
 
-        public Events(Storage storage, MusicService musicService, AudioGuildManager audioGuildManager)
+        public Events(Storage storage,
+                      MusicService musicService,
+                      AudioGuildManager audioGuildManager,
+                      InteractionService commands)
         {
             _storage = storage;
             _musicService = musicService;
             _audioGuildManager = audioGuildManager;
+            _commands = commands;
         }
         public Task Log(LogMessage arg)
         {
@@ -58,6 +64,11 @@ namespace DiscordBot
                 _storage.GetChannel(chnl.Guild.Id),
                 _storage.Url).ConfigureAwait(false);
             return Task.CompletedTask;
+        }
+
+        public async Task ReadyAsync()
+        {
+            _ = await _commands.RegisterCommandsGloballyAsync();
         }
     }
 }

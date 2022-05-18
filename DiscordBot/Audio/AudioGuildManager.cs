@@ -8,6 +8,8 @@ using Discord;
 using Discord.Addons.Music.Common;
 using Discord.Audio;
 using DiscordBot.Audio;
+using DiscordBot.Models;
+using VkNet.Utils;
 
 namespace DiscordBot
 {
@@ -36,7 +38,47 @@ namespace DiscordBot
 
             var tracks = await TrackLoader.LoadAudioTrack(url, true);
 
-            _ = audioManager.Scheduler.Enqueue(tracks[0]);
+            var castedTracks = tracks
+                .Select(x =>
+                {
+                    var y = new AudioTrackSecond(false, x.Url);
+                    y.Info = x.Info;
+                    return y;
+                })
+                .ToList();
+
+            foreach (var track in castedTracks)
+            {
+                await audioManager.Scheduler.Enqueue(track);
+            }
+        }
+
+        public async Task PlayMusicVk(IGuild guild,
+                                      IAudioClient audioClient,
+                                      VkCollection<VkNet.Model.Attachments.Audio> audios)
+        {
+            var audioManager = GetGuildVoiceState(guild);
+
+            audioManager.Player.SetAudioClient(audioClient);
+
+            var tracks = audios.Select(x =>
+            {
+                var y = new AudioTrackSecond(true, x.Url.ToString());
+                y.Info = new AudioInfo()
+                {
+                    Url = y.Url,
+                    Author = x.Artist,
+                    Duration = x.Duration.ToString(),
+                    Title = x.Title
+                };
+                return y;
+            })
+            .ToList();
+
+            foreach (var track in tracks)
+            {
+                await audioManager.Scheduler.Enqueue(track);
+            }
         }
     }
 }

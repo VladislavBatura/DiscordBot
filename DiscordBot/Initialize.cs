@@ -19,7 +19,5 @@ namespace DiscordBot
             _commands = commands ?? new();
             _client = client ?? new();
         }
-
-        
     }
 }
