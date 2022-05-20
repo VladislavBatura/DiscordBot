@@ -1,23 +1,35 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace DiscordBot.Models
 {
     public class AudioTrackVk : IDisposable
     {
-        public byte[] BufferFrame = new byte[1024];
-        public VkNet.Model.Attachments.Audio Audio { get; set; }
-        public Stream SourceStream { get; set; }
-        public Process Process { get; set; }
+        private readonly byte[] _bufferFrame = new byte[1024];
+        private readonly ILogger<AudioTrackVk> _logger;
 
-        public void LoadProcess()
+        public VkNet.Model.Attachments.Audio? Audio { get; set; }
+        public Stream? SourceStream { get; set; }
+        public Process? Process { get; set; }
+
+        public AudioTrackVk()
         {
+            var factory = LoggerFactory.Create(a => a.AddConsole());
+            _logger = factory.CreateLogger<AudioTrackVk>();
+        }
+
+        public async void LoadProcess()
+        {
+            if (Audio is null)
+            {
+                LogWarning(nameof(Audio));
+                return;
+            }
+
             var filename = $"/bin/bash";
+            //https://gist.github.com/grwlf/e1876f5d78cb6e66791809771d7bf36b?permalink_comment_id=3147977#gistcomment-3147977
+            //Это ответ помог грузить m3u8 с вк без "проглатываний" участков аудио
             var command = $"-c \"ffmpeg -hide_banner -loglevel panic -http_persistent false" +
                 $" -i \"{Audio.Url}\" -c copy output.mp3\"";
 
@@ -42,7 +54,7 @@ namespace DiscordBot.Models
 
             while (!File.Exists("output.mp3"))
             {
-                Task.Delay(100);
+                _ = Task.Delay(100);
             }
 
             Process?.Dispose();
@@ -55,29 +67,48 @@ namespace DiscordBot.Models
                 FileName = filename,
                 Arguments = command,
                 RedirectStandardOutput = true,
+                RedirectStandardInput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true
             });
+
+            if (Process is null)
+            {
+                LogWarning(nameof(Process));
+                return;
+            }
 
             SourceStream = Process.StandardOutput.BaseStream;
         }
 
         public async Task<int> ReadAudioStream(CancellationToken ct)
         {
-            return await SourceStream.ReadAsync(BufferFrame, 0, BufferFrame.Length, ct).ConfigureAwait(false);
+            if (SourceStream is null)
+            {
+                LogWarning(nameof(SourceStream));
+                return -1;
+            }
+
+            return await SourceStream.ReadAsync(_bufferFrame, ct).ConfigureAwait(false);
         }
 
         public byte[] GetBufferFrame()
         {
-            return BufferFrame;
+            return _bufferFrame;
         }
 
         public void Dispose()
         {
-            SourceStream.Dispose();
-            Process.Dispose();
+            SourceStream?.Dispose();
+            Process?.Dispose();
             SourceStream = null;
             Process = null;
+            GC.SuppressFinalize(this);
+        }
+
+        private void LogWarning(string nameOfVar)
+        {
+            _logger.LogWarning($"Call from {this}, {nameOfVar} is null");
         }
     }
 }

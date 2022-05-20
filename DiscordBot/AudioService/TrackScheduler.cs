@@ -1,18 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Discord.Addons.Music.Player;
+﻿using Discord.Addons.Music.Player;
 using Discord.Addons.Music.Source;
 using Discord.Audio;
-using DiscordBot.Models;
 
-namespace DiscordBot.Audio
+namespace DiscordBot.AudioService
 {
     public class TrackScheduler
     {
-        private AudioPlayer _player;
+        private readonly AudioPlayer _player;
 
         public Queue<AudioTrack> SongQueue { get; set; }
 
@@ -33,7 +27,7 @@ namespace DiscordBot.Audio
             else
             {
                 // fire and forget
-                _player.StartTrackAsync(track).ConfigureAwait(false);
+                _ = _player.StartTrackAsync(track).ConfigureAwait(false);
             }
             return Task.CompletedTask;
         }

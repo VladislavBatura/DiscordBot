@@ -1,26 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using Discord.Addons.Music.Source;
-using Discord.Audio;
+﻿using Discord.Audio;
 
 namespace DiscordBot.Models
 {
-    public class AudioTrackSecond
+    public class VkPlayer : IDisposable
     {
         public event EventHandler<AudioTrackVkEventArgs> TrackStartEvent;
         public event EventHandler<AudioTrackVkEventArgs> TrackStopEvent;
 
-        public Stream DiscordStream { get; set; }
-        public IAudioClient AudioClient { get; private set; }
-        public AudioTrackVkEventArgs AudioTrack { get; set; }
-        private CancellationTokenSource _cancelToken;
+        public Stream? DiscordStream { get; set; }
+        public IAudioClient? AudioClient { get; private set; }
+        public AudioTrackVkEventArgs? AudioTrack { get; set; }
+        private CancellationTokenSource? _cancelToken;
         public Task TrackStartEventAsync(AudioTrackVkEventArgs e)
         {
+            if (e is null || e.Audio is null)
+            {
+                return Task.CompletedTask;
+            }
+
             e.Audio.LoadProcess();
             TrackStartEvent(this, e);
             return Task.CompletedTask;
@@ -28,7 +25,6 @@ namespace DiscordBot.Models
 
         private async Task ReadAudio(AudioTrackVkEventArgs audioTrack, CancellationToken ct)
         {
-            var read = -1;
             while (true)
             {
                 if (ct.IsCancellationRequested)
@@ -42,10 +38,10 @@ namespace DiscordBot.Models
                     return;
                 }
                 // Read audio byte sample
-                read = await AudioTrack.Audio.ReadAudioStream(ct).ConfigureAwait(false);
+                var read = await audioTrack!.Audio!.ReadAudioStream(ct).ConfigureAwait(false);
                 if (read > 0)
                 {
-                    await DiscordStream.WriteAsync(AudioTrack.Audio.GetBufferFrame(), 0, read, ct).ConfigureAwait(false);
+                    await DiscordStream.WriteAsync(audioTrack.Audio.GetBufferFrame().AsMemory(0, read), ct).ConfigureAwait(false);
                 }
                 // Finished playing
                 else
@@ -76,6 +72,11 @@ namespace DiscordBot.Models
             if (track is null)
                 return;
 
+            if (AudioTrack is not null)
+            {
+                _ = Stop();
+            }
+
             AudioTrack = new AudioTrackVkEventArgs()
             {
                 Audio = track
@@ -89,7 +90,7 @@ namespace DiscordBot.Models
             await TrackEndEventAsync(AudioTrack).ConfigureAwait(false);
         }
 
-        public async Task Stop()
+        public Task Stop()
         {
             try
             {
@@ -99,29 +100,29 @@ namespace DiscordBot.Models
             {
             }
             _cancelToken?.Dispose();
+            AudioTrack?.Dispose();
+            return Task.CompletedTask;
         }
 
-        void ResetStreams()
+        private void ResetStreams()
         {
             DiscordStream?.Flush();
             AudioTrack?.Dispose();
         }
 
-        ~AudioTrackSecond()
+        ~VkPlayer()
         {
             DiscordStream?.Dispose();
             AudioTrack?.Dispose();
             _cancelToken?.Dispose();
         }
-    }
-
-    public class AudioTrackVkEventArgs : EventArgs, IDisposable
-    {
-        public AudioTrackVk Audio { get; set; }
 
         public void Dispose()
         {
-            Audio.Dispose();
+            DiscordStream?.Dispose();
+            AudioTrack?.Dispose();
+            _cancelToken?.Dispose();
+            GC.SuppressFinalize(this);
         }
     }
 }

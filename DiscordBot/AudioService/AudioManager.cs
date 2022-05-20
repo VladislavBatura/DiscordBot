@@ -13,7 +13,7 @@ namespace DiscordBot.Audio
     {
         public AudioPlayer Player { get; set; }
         public TrackScheduler Scheduler { get; set; }
-        public AudioTrackSecond VkPlayer { get; set; }
+        public VkPlayer VkPlayer { get; set; }
         public TrackSchedulerVk VkScheduler { get; set; }
 
 

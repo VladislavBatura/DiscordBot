@@ -1,21 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Discord.Addons.Music.Source;
-using Discord.Audio;
-using DiscordBot.Models;
+﻿using DiscordBot.Models;
 
 namespace DiscordBot.AudioService
 {
     public class TrackSchedulerVk
     {
-        private AudioTrackSecond _player;
+        private readonly VkPlayer _player;
 
         public Queue<AudioTrackVk> SongQueue { get; set; }
 
-        public TrackSchedulerVk(AudioTrackSecond player)
+        public TrackSchedulerVk(VkPlayer player)
         {
             _player = player;
             SongQueue = new Queue<AudioTrackVk>();
@@ -32,7 +25,7 @@ namespace DiscordBot.AudioService
             else
             {
                 // fire and forget
-                _player.StartTrackAsync(track).ConfigureAwait(false);
+                _ = _player.StartTrackAsync(track).ConfigureAwait(false);
             }
             return Task.CompletedTask;
         }
@@ -42,24 +35,23 @@ namespace DiscordBot.AudioService
             if (SongQueue.TryDequeue(out var nextTrack))
                 await _player.StartTrackAsync(nextTrack);
             else
-                _player.Stop();
-
+                _ = _player.Stop();
         }
 
         public Task Stop()
         {
-            _player.Stop();
+            _ = _player.Stop();
             return Task.CompletedTask;
         }
 
         public void OnTrackStartAsync(object sender, AudioTrackVkEventArgs e)
         {
-            Console.WriteLine($"Track start! {e.Audio.Audio.Title} - {e.Audio.Audio.Artist}");
+            Console.WriteLine($"Track start! {e.Audio!.Audio!.Title} - {e.Audio.Audio.Artist}");
         }
 
         public async void OnTrackEndAsync(object sender, AudioTrackVkEventArgs e)
         {
-            Console.WriteLine($"Track end! {e.Audio.Audio.Title} - {e.Audio.Audio.Artist}");
+            Console.WriteLine($"Track end! {e.Audio!.Audio!.Title} - {e.Audio.Audio.Artist}");
 
             await NextTrack();
         }

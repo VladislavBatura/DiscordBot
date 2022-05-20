@@ -1,21 +1,12 @@
 ﻿using System.Text;
 using Discord.Interactions;
 using Discord;
-using Discord.Audio;
 using YoutubeExplode;
-using YoutubeExplode.Videos.Streams;
-using CliWrap;
 using YoutubeExplode.Search;
-using Discord.Addons.Music.Player;
-using Discord.Addons.Music.Source;
-using Discord.Addons.Music.Common;
-using Discord.Addons.Music.Objects;
 using VkNet;
-using VkNet.Utils;
 using Microsoft.Extensions.Logging;
 using DiscordBot.HostedServices;
 using DiscordBot.Models;
-using System.Diagnostics;
 
 namespace DiscordBot
 {
@@ -130,6 +121,22 @@ namespace DiscordBot
             _ = PlayVkMusicAsync(count, userId, offset, channel);
         }
 
+        [SlashCommand("stopvk", "Стопит аудио вк", runMode: RunMode.Async)]
+        public async Task StopAudioVkAsync()
+        {
+            await RespondAsync("Stopping the music");
+            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+            await audioManager.VkScheduler.Stop();
+        }
+
+        [SlashCommand("skipvk", "Скипает аудио вк", runMode: RunMode.Async)]
+        public async Task SkipAudioVkAsync()
+        {
+            await RespondAsync("Skipping current track");
+            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+            await audioManager.VkScheduler.NextTrack();
+        }
+
         [SlashCommand("loginvk", "Логинится в вк через двухфакторку", runMode: RunMode.Async)]
         public async Task LoginVk(string twoFactorCode)
         {
@@ -163,8 +170,8 @@ namespace DiscordBot
             {
                 foreach (var video in batch.Items)
                 {
-                    if (!(video as VideoSearchResult).Duration.HasValue ||
-                        (video as VideoSearchResult).Duration.Value.TotalMinutes
+                    if (!(video as VideoSearchResult)!.Duration.HasValue ||
+                        (video as VideoSearchResult)!.Duration!.Value.TotalMinutes
                         is > 125d or < 0.5d)
                     {
                         continue;
@@ -263,7 +270,7 @@ namespace DiscordBot
 
             var stringa = new StringBuilder();
 
-            for (var i = 0; i < audios.Count; i++)
+            for (var i = 0; i < 10; i++)
             {
                 stringa = stringa.AppendLine($"{i + 1} -" +
                     $" {audios[i].Title} -" +

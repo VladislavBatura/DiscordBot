@@ -2,6 +2,7 @@
 using Discord.Addons.Hosting;
 using Discord.Interactions;
 using Discord.WebSocket;
+using DiscordBot.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
