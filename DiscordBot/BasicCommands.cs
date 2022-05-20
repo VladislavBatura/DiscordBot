@@ -15,6 +15,7 @@ using VkNet.Utils;
 using Microsoft.Extensions.Logging;
 using DiscordBot.HostedServices;
 using DiscordBot.Models;
+using System.Diagnostics;
 
 namespace DiscordBot
 {
@@ -126,7 +127,7 @@ namespace DiscordBot
                 return;
             }
 
-            await PlayVkMusicAsync(count, userId, offset, channel);
+            _ = PlayVkMusicAsync(count, userId, offset, channel);
         }
 
         [SlashCommand("loginvk", "Логинится в вк через двухфакторку", runMode: RunMode.Async)]
@@ -229,8 +230,6 @@ namespace DiscordBot
                                            long offset = 0,
                                            IVoiceChannel? channel = null)
         {
-            
-
             count = count > 6000 ? 6000 : count;
             offset = offset > 6000 ? 6000 : offset;
             var audios = userId is 0
@@ -299,20 +298,38 @@ namespace DiscordBot
 
             await _musicService.JoinAudio(Context.Guild, channel);
 
-            _ = _audioGuildManager.PlayMusicVk(Context.Guild,
-                                                 _storage.GetChannel(Context.Guild.Id),
-                                                 audios);
+            var audioClient = _storage.GetChannel(Context.Guild.Id);
+
+            var audioManager = _audioGuildManager.GetGuildVoiceState(Context.Guild);
+
+            audioManager.VkPlayer.SetAudioClient(audioClient);
+
+            var vkTracks = audios.Select(x => new AudioTrackVk() { Audio = x }).ToList();
+
+            foreach (var track in vkTracks)
+            {
+                await audioManager.VkScheduler.Enqueue(track);
+            }
+
+            //using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
 
             //foreach (var audio in audios)
             //{
+            //    if (File.Exists("output.mp3"))
+            //        File.Delete("output.mp3");
+
+            //    //Премного благодарен рандомным ребятам с гитхаба за этот фикс "проглоченных" фрагментов стрима
             //    _ = await Cli.Wrap("ffmpeg")
-            //        .WithArguments($"-hide_banner -loglevel panic -i {audio.Url} -ac 2 -f s16le -ar 48000 pipe:1")
+            //        .WithArguments($"-hide_banner -loglevel panic -http_persistent false -i \"{audio.Url}\" -c copy output.mp3")
+            //        .ExecuteAsync();
+
+            //    _ = await Cli.Wrap("ffmpeg")
+            //        .WithArguments($"-hide_banner -loglevel panic -i output.mp3 -ac 2 -f s16le -ar 48000 pipe:1")
             //        .WithStandardOutputPipe(PipeTarget.ToStream(_storage.OutputStream))
             //        .ExecuteAsync();
 
-            //    var audioClient = _storage.GetChannel(Context.Guild.Id);
 
-            //    using var discord = audioClient.CreatePCMStream(AudioApplication.Mixed);
+            //    //багает стрим похоже, ибо он повторяется и смешивается. Разберись потом
             //    try
             //    {
             //        await discord.WriteAsync((_storage.OutputStream as MemoryStream)
@@ -323,6 +340,9 @@ namespace DiscordBot
             //    {
             //        await discord.FlushAsync();
             //        await _storage.OutputStream.FlushAsync();
+            //        _storage.OutputStream.Position = 0;
+            //        discord.Position = 0;
+            //        File.Delete("output.mp3");
             //    }
             //}
             return;

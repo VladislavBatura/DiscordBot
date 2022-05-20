@@ -6,45 +6,122 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Discord.Addons.Music.Source;
+using Discord.Audio;
 
 namespace DiscordBot.Models
 {
-    public class AudioTrackSecond : AudioTrack
+    public class AudioTrackSecond
     {
-        public bool IsFromVk { get; set; }
+        public event EventHandler<AudioTrackVkEventArgs> TrackStartEvent;
+        public event EventHandler<AudioTrackVkEventArgs> TrackStopEvent;
 
-        public AudioTrackSecond(bool isFromVk, string url)
+        public Stream DiscordStream { get; set; }
+        public IAudioClient AudioClient { get; private set; }
+        public AudioTrackVkEventArgs AudioTrack { get; set; }
+        private CancellationTokenSource _cancelToken;
+        public Task TrackStartEventAsync(AudioTrackVkEventArgs e)
         {
-            IsFromVk = isFromVk;
-            if (string.IsNullOrEmpty(Url))
+            e.Audio.LoadProcess();
+            TrackStartEvent(this, e);
+            return Task.CompletedTask;
+        }
+
+        private async Task ReadAudio(AudioTrackVkEventArgs audioTrack, CancellationToken ct)
+        {
+            var read = -1;
+            while (true)
             {
-                Url = url;
+                if (ct.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                if (DiscordStream == null)
+                {
+                    Console.WriteLine("Discord stream is gone");
+                    return;
+                }
+                // Read audio byte sample
+                read = await AudioTrack.Audio.ReadAudioStream(ct).ConfigureAwait(false);
+                if (read > 0)
+                {
+                    await DiscordStream.WriteAsync(AudioTrack.Audio.GetBufferFrame(), 0, read, ct).ConfigureAwait(false);
+                }
+                // Finished playing
+                else
+                {
+                    return;
+                }
             }
         }
 
-        public override void LoadProcess()
+        public Task TrackEndEventAsync(AudioTrackVkEventArgs e)
         {
-            var fileName = "/bin/bash";
-            var arguments = "-c \"youtube-dl --format bestaudio -o - " + base.Url + " | ffmpeg -loglevel panic -i pipe:0 -ac 2 -f s16le -ar 48000 pipe:1\"";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                fileName = "cmd.exe";
-                arguments = "/C youtube-dl.exe --format bestaudio --audio-quality 0 -o - " + base.Url + " | ffmpeg.exe -loglevel warning -re -vn -i pipe:0 -f s16le -b:a 128k -ar 48000 -ac 2 pipe:1";
-            }
-            if (IsFromVk)
-            {
-                arguments = $"ffmpeg.exe -hide_banner -loglevel panic -i {Url} -ac 2 -f s16le -ar 48000 pipe:1";
-            }
+            ResetStreams();
+            AudioTrack = null;
+            _cancelToken?.Dispose();
+            TrackStopEvent(this, e);
+            return Task.CompletedTask;
+        }
 
-            base.FFmpegProcess = Process.Start(new ProcessStartInfo
+        public void SetAudioClient(IAudioClient client)
+        {
+            AudioClient = client;
+            DiscordStream?.Dispose();
+            DiscordStream = client.CreatePCMStream(AudioApplication.Mixed);
+        }
+
+        public async Task StartTrackAsync(AudioTrackVk track)
+        {
+            if (track is null)
+                return;
+
+            AudioTrack = new AudioTrackVkEventArgs()
             {
-                FileName = fileName,
-                Arguments = arguments,
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            });
-            base.SourceStream = base.FFmpegProcess.StandardOutput.BaseStream;
+                Audio = track
+            };
+
+            _cancelToken?.Dispose();
+            _cancelToken = new CancellationTokenSource();
+
+            await TrackStartEventAsync(AudioTrack).ConfigureAwait(false);
+            await ReadAudio(AudioTrack, _cancelToken.Token).ConfigureAwait(false);
+            await TrackEndEventAsync(AudioTrack).ConfigureAwait(false);
+        }
+
+        public async Task Stop()
+        {
+            try
+            {
+                _cancelToken?.Cancel(false);
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            _cancelToken?.Dispose();
+        }
+
+        void ResetStreams()
+        {
+            DiscordStream?.Flush();
+            AudioTrack?.Dispose();
+        }
+
+        ~AudioTrackSecond()
+        {
+            DiscordStream?.Dispose();
+            AudioTrack?.Dispose();
+            _cancelToken?.Dispose();
+        }
+    }
+
+    public class AudioTrackVkEventArgs : EventArgs, IDisposable
+    {
+        public AudioTrackVk Audio { get; set; }
+
+        public void Dispose()
+        {
+            Audio.Dispose();
         }
     }
 }

@@ -14,17 +14,17 @@ namespace DiscordBot.Audio
     {
         private AudioPlayer _player;
 
-        public Queue<AudioTrackSecond> SongQueue { get; set; }
+        public Queue<AudioTrack> SongQueue { get; set; }
 
         public TrackScheduler(AudioPlayer player)
         {
             _player = player;
-            SongQueue = new Queue<AudioTrackSecond>();
+            SongQueue = new Queue<AudioTrack>();
             _player.OnTrackStartAsync += OnTrackStartAsync;
             _player.OnTrackEndAsync += OnTrackEndAsync;
         }
 
-        public async Task Enqueue(AudioTrackSecond track)
+        public Task Enqueue(AudioTrack track)
         {
             if (_player.PlayingTrack != null)
             {
@@ -33,26 +33,18 @@ namespace DiscordBot.Audio
             else
             {
                 // fire and forget
-                await _player.StartTrackAsync(track).ConfigureAwait(false);
+                _player.StartTrackAsync(track).ConfigureAwait(false);
             }
-            return;
+            return Task.CompletedTask;
         }
 
         public async Task NextTrack()
         {
-            if (_player.PlayingTrack is not null)
-            {
-                await Stop();
-                if (SongQueue.TryDequeue(out var nextTrack))
-                    await _player.StartTrackAsync(nextTrack);
-            }
+            if (SongQueue.TryDequeue(out var nextTrack))
+                await _player.StartTrackAsync(nextTrack);
             else
-            {
-                if (SongQueue.TryDequeue(out var nextTrack))
-                    await _player.StartTrackAsync(nextTrack);
-                else
-                    _player.Stop();
-            }
+                _player.Stop();
+
         }
 
         public Task Stop()

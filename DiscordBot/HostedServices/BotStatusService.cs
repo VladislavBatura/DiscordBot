@@ -24,7 +24,7 @@ namespace DiscordBot
             await Client.WaitForReadyAsync(stoppingToken);
             Logger.LogInformation("Client is ready!");
 
-            await Client.SetActivityAsync(new Game("Рублю мешапы пацанам"));
+            await Client.SetActivityAsync(new Game("Рублю пацанам мешапы🤠"));
         }
     }
 }
