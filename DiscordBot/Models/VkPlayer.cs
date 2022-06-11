@@ -32,36 +32,43 @@ namespace DiscordBot.Models
 
         private async Task ReadAudio(AudioTrackVkEventArgs audioTrack, CancellationToken ct)
         {
-            while (true)
+            try
             {
-                if (ct.IsCancellationRequested)
-                    return;
+                while (true)
+                {
+                    if (ct.IsCancellationRequested)
+                        return;
 
-                if (DiscordStream is null)
-                {
-                    Console.WriteLine("Discord stream is gone");
-                    await TrackErrorEventAsync(AudioTrack, "Stream is gone");
-                    return;
-                }
+                    if (DiscordStream is null)
+                    {
+                        Console.WriteLine("Discord stream is gone");
+                        await TrackErrorEventAsync(AudioTrack, "Stream is gone");
+                        return;
+                    }
 
-                if (audioTrack.Audio is null || audioTrack.Audio.SourceStream is null)
-                {
-                    Console.WriteLine("Source stream is gone");
-                    await TrackErrorEventAsync(AudioTrack, "Stream is gone");
-                    return;
-                }
+                    if (audioTrack.Audio is null || audioTrack.Audio.SourceStream is null)
+                    {
+                        Console.WriteLine("Source stream is gone");
+                        await TrackErrorEventAsync(AudioTrack, "Stream is gone");
+                        return;
+                    }
 
-                // Read audio byte sample
-                var read = await audioTrack.Audio.ReadAudioStream(ct).ConfigureAwait(false);
-                if (read > 0)
-                {
-                    await DiscordStream.WriteAsync(audioTrack.Audio.GetBufferFrame().AsMemory(0, read), ct).ConfigureAwait(false);
+                    // Read audio byte sample
+                    var read = await audioTrack.Audio.ReadAudioStream(ct).ConfigureAwait(false);
+                    if (read > 0)
+                    {
+                        await DiscordStream.WriteAsync(audioTrack.Audio.GetBufferFrame().AsMemory(0, read), ct).ConfigureAwait(false);
+                    }
+                    // Finished playing
+                    else
+                    {
+                        return;
+                    }
                 }
-                // Finished playing
-                else
-                {
-                    return;
-                }
+            }
+            catch
+            {
+                Console.WriteLine("Audio player was stopped by cancel token");
             }
         }
 

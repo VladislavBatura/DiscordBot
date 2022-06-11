@@ -140,15 +140,18 @@ namespace DiscordBot
         [SlashCommand("loginvk", "Логинится в вк через двухфакторку", runMode: RunMode.Async)]
         public async Task LoginVk(string twoFactorCode)
         {
+            await DeferAsync();
             if (string.IsNullOrEmpty(twoFactorCode) || twoFactorCode.Trim().Length != 6)
             {
-                await RespondAsync("Введи код");
+                await ModifyMessage("Введи код", null);
+                //await RespondAsync("Введи код");
                 return;
             }
 
             if (_storage.IsVkEnabled)
             {
-                await RespondAsync("Уже включено");
+                await ModifyMessage("Уже включено", null);
+                //await RespondAsync("Уже включено");
                 return;
             }
 
@@ -156,10 +159,12 @@ namespace DiscordBot
 
             if (!resultOfLogin)
             {
-                await RespondAsync("Не получилось");
+                await ModifyMessage("Не получилось", null);
+                //await RespondAsync("Не получилось");
                 return;
             }
-            await RespondAsync("Всё окей, пробуй");
+            await ModifyMessage("Всё окей", null);
+            //await RespondAsync("Всё окей, пробуй");
             return;
         }
 

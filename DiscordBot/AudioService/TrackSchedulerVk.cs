@@ -18,7 +18,7 @@ namespace DiscordBot.AudioService
 
         public Task Enqueue(AudioTrackVk track)
         {
-            if (_player.AudioTrack != null)
+            if (_player.AudioTrack is not null)
             {
                 SongQueue.Enqueue(track);
             }
@@ -35,25 +35,36 @@ namespace DiscordBot.AudioService
             if (SongQueue.TryDequeue(out var nextTrack))
                 await _player.StartTrackAsync(nextTrack);
             else
-                _ = _player.Stop();
+                _player.Stop();
         }
 
         public Task Stop()
         {
-            _ = _player.Stop();
+            _player.Stop();
+            SongQueue.Clear();
             return Task.CompletedTask;
         }
 
         public void OnTrackStartAsync(object sender, AudioTrackVkEventArgs e)
         {
-            Console.WriteLine($"Track start! {e.Audio!.Audio!.Title} - {e.Audio.Audio.Artist}");
+            if (e.Audio is null || e.Audio.Audio is null)
+                Console.WriteLine("Track info was deleted, but it still goes on");
+            else
+                Console.WriteLine($"Track start! {e.Audio!.Audio!.Title} - {e.Audio.Audio.Artist}");
         }
 
         public async void OnTrackEndAsync(object sender, AudioTrackVkEventArgs e)
         {
-            Console.WriteLine($"Track end! {e.Audio!.Audio!.Title} - {e.Audio.Audio.Artist}");
-
-            await NextTrack();
+            if (e.Audio is null || e.Audio.Audio is null)
+            {
+                Console.WriteLine("Track was deleted");
+                await NextTrack();
+            }
+            else
+            {
+                Console.WriteLine($"Track end! {e.Audio.Audio.Title} - {e.Audio.Audio.Artist}");
+                await NextTrack();
+            }
         }
     }
 }
