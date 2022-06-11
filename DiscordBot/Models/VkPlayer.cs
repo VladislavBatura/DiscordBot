@@ -23,22 +23,36 @@ namespace DiscordBot.Models
             return Task.CompletedTask;
         }
 
+        private Task TrackErrorEventAsync(AudioTrackVkEventArgs e, string exception)
+        {
+            ResetStreams();
+            AudioTrack = null;
+            return Task.CompletedTask;
+        }
+
         private async Task ReadAudio(AudioTrackVkEventArgs audioTrack, CancellationToken ct)
         {
             while (true)
             {
                 if (ct.IsCancellationRequested)
+                    return;
+
+                if (DiscordStream is null)
                 {
+                    Console.WriteLine("Discord stream is gone");
+                    await TrackErrorEventAsync(AudioTrack, "Stream is gone");
                     return;
                 }
 
-                if (DiscordStream == null)
+                if (audioTrack.Audio is null || audioTrack.Audio.SourceStream is null)
                 {
-                    Console.WriteLine("Discord stream is gone");
+                    Console.WriteLine("Source stream is gone");
+                    await TrackErrorEventAsync(AudioTrack, "Stream is gone");
                     return;
                 }
+
                 // Read audio byte sample
-                var read = await audioTrack!.Audio!.ReadAudioStream(ct).ConfigureAwait(false);
+                var read = await audioTrack.Audio.ReadAudioStream(ct).ConfigureAwait(false);
                 if (read > 0)
                 {
                     await DiscordStream.WriteAsync(audioTrack.Audio.GetBufferFrame().AsMemory(0, read), ct).ConfigureAwait(false);
@@ -73,9 +87,7 @@ namespace DiscordBot.Models
                 return;
 
             if (AudioTrack is not null)
-            {
                 _ = Stop();
-            }
 
             AudioTrack = new AudioTrackVkEventArgs()
             {

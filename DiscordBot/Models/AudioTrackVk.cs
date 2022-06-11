@@ -41,7 +41,23 @@ namespace DiscordBot.Models
             }
 
             if (File.Exists("output.mp3"))
-                File.Delete("output.mp3");
+            {
+                var booling = false;
+                while (!booling)
+                {
+                    booling = true;
+                    try
+                    {
+                        File.Delete("output.mp3");
+                    }
+                    catch
+                    {
+                        booling = false;
+                    }
+
+                    _ = Task.Delay(500);
+                }
+            }
 
             Process = Process.Start(new ProcessStartInfo
             {
@@ -83,12 +99,6 @@ namespace DiscordBot.Models
 
         public async Task<int> ReadAudioStream(CancellationToken ct)
         {
-            if (SourceStream is null)
-            {
-                LogWarning(nameof(SourceStream));
-                return -1;
-            }
-
             return await SourceStream.ReadAsync(_bufferFrame, ct).ConfigureAwait(false);
         }
 

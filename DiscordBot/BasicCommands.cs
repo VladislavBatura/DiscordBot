@@ -270,7 +270,7 @@ namespace DiscordBot
 
             var stringa = new StringBuilder();
 
-            for (var i = 0; i < 10; i++)
+            for (var i = 0; i < (audios.Count > 10 ? 10 : audios.Count); i++)
             {
                 stringa = stringa.AppendLine($"{i + 1} -" +
                     $" {audios[i].Title} -" +

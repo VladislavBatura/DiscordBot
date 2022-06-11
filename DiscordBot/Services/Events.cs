@@ -59,7 +59,8 @@ namespace DiscordBot.Services
 
         public async Task ReadyAsync()
         {
-            _ = await _commands.RegisterCommandsGloballyAsync();
+            //_ = await _commands.RegisterCommandsGloballyAsync();
+            _ = await _commands.RegisterCommandsToGuildAsync(469853933427359747);
         }
     }
 }
